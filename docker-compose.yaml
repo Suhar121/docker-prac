@@ -1,0 +1,17 @@
+services:
+
+  backend:
+    build: ./backend
+    container_name: fastapi_app
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: vite_app
+    ports:
+      - "5173:5173"   # ✅ FIXED
+    depends_on:
+      - backend
+    restart: unless-stopped
