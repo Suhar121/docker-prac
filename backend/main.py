@@ -8,3 +8,11 @@ def read_root():
 @app.get("/items/{item_id}")
 def read_items(item_id:int):
     return {"item_id":item_id}
+
+@app.get("/hi")
+def say_hi():
+    return {"message": "Hi!"}
+
+@app.get("/bye")
+def say_bye():
+    return {"message": "Bye!"}
