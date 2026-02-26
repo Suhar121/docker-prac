@@ -10,5 +10,5 @@ def read_items(item_id:int):
     return {"item_id":item_id}
 
 @app.get("/getnumber")
-def say_hi():
-    return {"message": "6005231146"}
+def get_number():
+    return {"message": "+91 6005231146"}
