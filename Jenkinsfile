@@ -3,8 +3,10 @@ pipeline {
 
     environment {
         IMAGE_NAME = "fastapi-jenkins"
-        CONTAINER_NAME = "fastapi"
-        PORT = "8000"
+        PROD_CONTAINER = "fastapi"
+        STAGING_CONTAINER = "fastapi-staging"
+        PROD_PORT = "8000"
+        STAGING_PORT = "8001"
     }
 
     stages {
@@ -37,23 +39,45 @@ pipeline {
             }
         }
 
-        stage('Deploy Container') {
+        stage('Deploy to STAGING') {
             steps {
                 sh '''
-                echo "Stopping old container..."
-                docker stop $CONTAINER_NAME || true
-                docker rm $CONTAINER_NAME || true
+                echo "Deploying to STAGING..."
 
-                echo "Running new container..."
-                docker run -d -p $PORT:$PORT \
-                --name $CONTAINER_NAME $IMAGE_NAME
+                docker stop $STAGING_CONTAINER || true
+                docker rm $STAGING_CONTAINER || true
 
-                echo "Running containers:"
+                docker run -d -p $STAGING_PORT:8000 \
+                --name $STAGING_CONTAINER $IMAGE_NAME
+
+                echo "Staging running on port $STAGING_PORT"
                 docker ps
                 '''
             }
         }
 
+        stage('Approve Production Deploy') {
+            steps {
+                input message: 'Staging looks good? Deploy to PRODUCTION?'
+            }
+        }
+
+        stage('Deploy to PRODUCTION') {
+            steps {
+                sh '''
+                echo "Deploying to PRODUCTION..."
+
+                docker stop $PROD_CONTAINER || true
+                docker rm $PROD_CONTAINER || true
+
+                docker run -d -p $PROD_PORT:8000 \
+                --name $PROD_CONTAINER $IMAGE_NAME
+
+                echo "Production running on port $PROD_PORT"
+                docker ps
+                '''
+            }
+        }
     }
 
     post {
