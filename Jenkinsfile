@@ -27,13 +27,22 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                script {
+                    // get short commit id
+                    IMAGE_TAG = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+
+                    // full image name with version tag
+                    FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    echo "Building image: ${FULL_IMAGE}"
+                }
+
                 dir('backend') {
                     sh '''
-                    echo "Removing old image..."
-                    docker rmi $IMAGE_NAME || true
-
-                    echo "Building new image..."
-                    docker build -t $IMAGE_NAME .
+                    docker build -t $FULL_IMAGE .
                     '''
                 }
             }
@@ -48,9 +57,8 @@ pipeline {
                 docker rm $STAGING_CONTAINER || true
 
                 docker run -d -p $STAGING_PORT:8000 \
-                --name $STAGING_CONTAINER $IMAGE_NAME
+                --name $STAGING_CONTAINER $FULL_IMAGE
 
-                echo "Staging running on port $STAGING_PORT"
                 docker ps
                 '''
             }
@@ -71,9 +79,8 @@ pipeline {
                 docker rm $PROD_CONTAINER || true
 
                 docker run -d -p $PROD_PORT:8000 \
-                --name $PROD_CONTAINER $IMAGE_NAME
+                --name $PROD_CONTAINER $FULL_IMAGE
 
-                echo "Production running on port $PROD_PORT"
                 docker ps
                 '''
             }
