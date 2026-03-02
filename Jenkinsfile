@@ -31,7 +31,6 @@ pipeline {
 
                     if (params.ACTION == 'ROLLBACK') {
 
-                        // fetch available tags from docker images
                         def tags = sh(
                             script: "docker images ${IMAGE_NAME} --format '{{.Tag}}' | grep -v latest",
                             returnStdout: true
@@ -41,7 +40,6 @@ pipeline {
                             error("No images available for rollback")
                         }
 
-                        // ask user which tag to rollback to
                         def selected = input(
                             message: "Select version to rollback",
                             parameters: [
@@ -54,13 +52,27 @@ pipeline {
 
                     } else {
 
-                        // build new image from commit
-                        def TAG = sh(
+                        // get branch name
+                        def BRANCH = sh(
+                            script: "git rev-parse --abbrev-ref HEAD",
+                            returnStdout: true
+                        ).trim()
+
+                        // get commit short id
+                        def COMMIT = sh(
                             script: "git rev-parse --short HEAD",
                             returnStdout: true
                         ).trim()
 
+                        // get date
+                        def DATE = sh(
+                            script: "date +%Y-%m-%d",
+                            returnStdout: true
+                        ).trim()
+
+                        def TAG = "${BRANCH}-${DATE}-${COMMIT}"
                         env.FULL_IMAGE = "${IMAGE_NAME}:${TAG}"
+
                         echo "Building new image ${env.FULL_IMAGE}"
 
                         dir('backend') {
