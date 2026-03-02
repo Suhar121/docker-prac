@@ -7,12 +7,6 @@ pipeline {
             choices: ['DEPLOY', 'ROLLBACK'],
             description: 'Choose DEPLOY for new version or ROLLBACK to previous image'
         )
-
-        string(
-            name: 'ROLLBACK_TAG',
-            defaultValue: '',
-            description: 'Enter image tag to rollback (only used if ROLLBACK selected)'
-        )
     }
 
     environment {
@@ -24,14 +18,6 @@ pipeline {
     }
 
     stages {
-
-        stage('Check Environment') {
-            steps {
-                sh 'whoami'
-                sh 'docker version'
-                sh 'docker ps'
-            }
-        }
 
         stage('Clone Repo') {
             steps {
@@ -45,22 +31,37 @@ pipeline {
 
                     if (params.ACTION == 'ROLLBACK') {
 
-                        if (!params.ROLLBACK_TAG) {
-                            error("Rollback selected but no tag provided")
+                        // fetch available tags from docker images
+                        def tags = sh(
+                            script: "docker images ${IMAGE_NAME} --format '{{.Tag}}' | grep -v latest",
+                            returnStdout: true
+                        ).trim().split("\n")
+
+                        if (tags.size() == 0) {
+                            error("No images available for rollback")
                         }
 
-                        env.FULL_IMAGE = "${IMAGE_NAME}:${params.ROLLBACK_TAG}"
-                        echo "Rolling back to image: ${env.FULL_IMAGE}"
+                        // ask user which tag to rollback to
+                        def selected = input(
+                            message: "Select version to rollback",
+                            parameters: [
+                                choice(name: 'VERSION', choices: tags.join('\n'), description: 'Choose image tag')
+                            ]
+                        )
+
+                        env.FULL_IMAGE = "${IMAGE_NAME}:${selected}"
+                        echo "Rolling back to ${env.FULL_IMAGE}"
 
                     } else {
 
+                        // build new image from commit
                         def TAG = sh(
                             script: "git rev-parse --short HEAD",
                             returnStdout: true
                         ).trim()
 
                         env.FULL_IMAGE = "${IMAGE_NAME}:${TAG}"
-                        echo "Building new image: ${env.FULL_IMAGE}"
+                        echo "Building new image ${env.FULL_IMAGE}"
 
                         dir('backend') {
                             sh "docker build -t ${env.FULL_IMAGE} ."
@@ -73,15 +74,11 @@ pipeline {
         stage('Deploy to STAGING') {
             steps {
                 sh '''
-                echo "Deploying to STAGING..."
-
                 docker stop $STAGING_CONTAINER || true
                 docker rm $STAGING_CONTAINER || true
 
                 docker run -d -p $STAGING_PORT:8000 \
                 --name $STAGING_CONTAINER $FULL_IMAGE
-
-                docker ps
                 '''
             }
         }
@@ -95,26 +92,13 @@ pipeline {
         stage('Deploy to PRODUCTION') {
             steps {
                 sh '''
-                echo "Deploying to PRODUCTION..."
-
                 docker stop $PROD_CONTAINER || true
                 docker rm $PROD_CONTAINER || true
 
                 docker run -d -p $PROD_PORT:8000 \
                 --name $PROD_CONTAINER $FULL_IMAGE
-
-                docker ps
                 '''
             }
-        }
-    }
-
-    post {
-        success {
-            echo 'Deployment Successful 🚀'
-        }
-        failure {
-            echo 'Deployment Failed ❌'
         }
     }
 }
