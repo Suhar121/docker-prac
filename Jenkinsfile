@@ -27,18 +27,20 @@ pipeline {
 
         stage('Build Docker Image') {
     steps {
+        script {
+            TAG = sh(
+                script: "git rev-parse --short HEAD",
+                returnStdout: true
+            ).trim()
+
+            env.IMAGE_TAG = TAG
+            env.FULL_IMAGE = "${IMAGE_NAME}:${env.IMAGE_TAG}"
+
+            echo "Building image ${env.FULL_IMAGE}"
+        }
+
         dir('backend') {
-            sh '''
-            echo "Getting commit hash..."
-            TAG=$(git rev-parse --short HEAD)
-
-            echo "Building image: fastapi-jenkins:$TAG"
-
-            docker build -t fastapi-jenkins:$TAG .
-
-            # Save tag for next stages
-            echo $TAG > /tmp/image_tag
-            '''
+            sh "docker build -t ${FULL_IMAGE} ."
         }
     }
 }
