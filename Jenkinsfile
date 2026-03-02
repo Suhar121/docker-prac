@@ -1,6 +1,20 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['DEPLOY', 'ROLLBACK'],
+            description: 'Choose DEPLOY for new version or ROLLBACK to previous image'
+        )
+
+        string(
+            name: 'ROLLBACK_TAG',
+            defaultValue: '',
+            description: 'Enter image tag to rollback (only used if ROLLBACK selected)'
+        )
+    }
+
     environment {
         IMAGE_NAME = "fastapi-jenkins"
         PROD_CONTAINER = "fastapi"
@@ -25,25 +39,36 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-    steps {
-        script {
-            TAG = sh(
-                script: "git rev-parse --short HEAD",
-                returnStdout: true
-            ).trim()
+        stage('Prepare Image') {
+            steps {
+                script {
 
-            env.IMAGE_TAG = TAG
-            env.FULL_IMAGE = "${IMAGE_NAME}:${env.IMAGE_TAG}"
+                    if (params.ACTION == 'ROLLBACK') {
 
-            echo "Building image ${env.FULL_IMAGE}"
+                        if (!params.ROLLBACK_TAG) {
+                            error("Rollback selected but no tag provided")
+                        }
+
+                        env.FULL_IMAGE = "${IMAGE_NAME}:${params.ROLLBACK_TAG}"
+                        echo "Rolling back to image: ${env.FULL_IMAGE}"
+
+                    } else {
+
+                        def TAG = sh(
+                            script: "git rev-parse --short HEAD",
+                            returnStdout: true
+                        ).trim()
+
+                        env.FULL_IMAGE = "${IMAGE_NAME}:${TAG}"
+                        echo "Building new image: ${env.FULL_IMAGE}"
+
+                        dir('backend') {
+                            sh "docker build -t ${env.FULL_IMAGE} ."
+                        }
+                    }
+                }
+            }
         }
-
-        dir('backend') {
-            sh "docker build -t ${FULL_IMAGE} ."
-        }
-    }
-}
 
         stage('Deploy to STAGING') {
             steps {
